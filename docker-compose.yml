@@ -1,37 +1,52 @@
+
 services:
   db:
-    image: mysql:8.0
-    env_file: .env
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    image: mysql:8
+    restart: unless-stopped
+    env_file:
+      - .env
     volumes:
-      - db_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - mysql_data:/var/lib/mysql
+    networks:
+      - apartment_network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$${MYSQL_ROOT_PASSWORD}"]
+      test:
+        - CMD-SHELL
+        - "mysqladmin ping -h 127.0.0.1 --silent"
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
       start_period: 30s
-    networks: [backend]
-    restart: unless-stopped
+
   app:
-    image: ${APP_IMAGE:-yourdockerhubusername/apartment-booking:1.0.0}
-    env_file: .env
-    environment:
-      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+    image: ${APP_IMAGE:-sheesshasnain/apartment-booking:1.0.0}
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:8000:8000"
-    networks: [backend]
+    networks:
+      - apartment_network
+
+  frontend:
+    image: apartment-frontend:1.0.2
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      - app
+    networks:
+      - apartment_network
+
 volumes:
-  db_data:
+  mysql_data:
+
 networks:
-  backend:
+  apartment_network:
     driver: bridge
